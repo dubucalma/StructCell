@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>StructCell — Protein Folding</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Epilogue:wght@300;400;600;800;900&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://3dmol.org/build/3Dmol-min.js"></script>
+<style>
+:root {
+  --bg:       #060810;
+  --surf:     #0c0f1a;
+  --surf2:    #111527;
+  --border:   #1a2038;
+  --border2:  #252d4a;
+  --accent:   #4f9eff;
+  --accent2:  #7c3aed;
+  --green:    #10b981;
+  --amber:    #f59e0b;
+  --red:      #ef4444;
+  --text:     #dde6f5;
+  --muted:    #4a5680;
+  --mono:     'IBM Plex Mono', monospace;
+  --head:     'Epilogue', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--head);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 10% 20%, rgba(79,158,255,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 90% 80%, rgba(124,58,237,.07) 0%, transparent 60%);
+  pointer-events: none;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(79,158,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,158,255,.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+
+/* ── Header ── */
+header {
+  position: relative; z-index: 10;
+  padding: 1.4rem 2.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 1.2rem;
+  background: rgba(6,8,16,.85);
+  backdrop-filter: blur(12px);
+}
+.logo {
+  width: 38px; height: 38px; border-radius: 9px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+}
+.brand { display: flex; flex-direction: column; }
+.brand-name { font-size: 1.15rem; font-weight: 900; letter-spacing: -.04em; line-height: 1; }
+.brand-name span { color: var(--accent); }
+.brand-sub { font-family: var(--mono); font-size: .62rem; color: var(--muted); margin-top: 2px; letter-spacing: .06em; }
+.pipeline-tags { margin-left: auto; display: flex; gap: .5rem; }
+.tag {
+  font-family: var(--mono); font-size: .6rem; letter-spacing: .06em;
+  padding: .25rem .6rem; border-radius: 4px;
+  border: 1px solid var(--border2); color: var(--muted);
+}
+.tag.active { border-color: var(--accent); color: var(--accent); }
+
+/* ── App shell ── */
+.shell {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  flex: 1; min-height: 0;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  border-right: 1px solid var(--border);
+  padding: 1.8rem 1.6rem;
+  display: flex; flex-direction: column; gap: 1.4rem;
+  background: rgba(12,15,26,.7);
+  overflow-y: auto;
+}
+.section-head {
+  font-family: var(--mono); font-size: .6rem; color: var(--muted);
+  letter-spacing: .14em; text-transform: uppercase;
+  display: flex; align-items: center; gap: .5rem;
+  margin-bottom: .6rem;
+}
+.section-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.field { display: flex; flex-direction: column; gap: .35rem; }
+.field label { font-size: .78rem; font-weight: 600; color: var(--text); }
+.field .hint { font-family: var(--mono); font-size: .62rem; color: var(--muted); }
+
+input, textarea {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: var(--mono); font-size: .75rem;
+  padding: .55rem .85rem;
+  width: 100%;
+  outline: none; transition: border-color .2s, box-shadow .2s;
+  resize: vertical;
+}
+input:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,158,255,.1);
+}
+textarea { min-height: 90px; line-height: 1.6; }
+#mutation_name { border-color: rgba(79,158,255,.3); }
+
+.btn-run {
+  width: 100%;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+  border: none; border-radius: 9px;
+  color: #fff; cursor: pointer;
+  font-family: var(--head); font-size: .88rem; font-weight: 800;
+  letter-spacing: -.01em;
+  padding: .85rem 1rem;
+  transition: opacity .2s, transform .15s;
+  margin-top: auto;
+  display: flex; align-items: center; justify-content: center; gap: .5rem;
+}
+.btn-run:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+.btn-run:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── Main panel ── */
+.main { display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Status strip ── */
+.status-strip {
+  display: none;
+  padding: .7rem 1.6rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surf);
+  align-items: center; gap: .8rem;
+  font-family: var(--mono); font-size: .72rem;
+}
+.status-strip.visible { display: flex; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--amber); animation: blink 1s infinite; }
+.dot.done  { background: var(--green); animation: none; }
+.dot.error { background: var(--red);   animation: none; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+.status-msg { color: var(--text); }
+.job-badge {
+  margin-left: auto;
+  background: var(--surf2); border: 1px solid var(--border2);
+  border-radius: 5px; padding: .1rem .5rem;
+  color: var(--muted); font-size: .62rem;
+}
+
+/* ── Log panel ── */
+.log-wrap { display: none; border-bottom: 1px solid var(--border); background: #030508; }
+.log-wrap.visible { display: block; }
+.log-toggle {
+  font-family: var(--mono); font-size: .62rem; color: var(--muted);
+  padding: .4rem 1.6rem; cursor: pointer;
+  display: flex; align-items: center; gap: .4rem;
+  border: none; background: none; width: 100%; text-align: left;
+}
+.log-toggle:hover { color: var(--accent); }
+.log-box {
+  display: none;
+  font-family: var(--mono); font-size: .67rem; color: #556080;
+  padding: .6rem 1.6rem 1rem; max-height: 130px; overflow-y: auto; line-height: 1.8;
+}
+.log-box.open { display: block; }
+.log-err { color: var(--red); }
+
+/* ── Content area ── */
+.content { flex: 1; overflow-y: auto; padding: 1.8rem 2rem; }
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 100%; gap: 1rem; color: var(--muted); text-align: center;
+}
+.empty-glyph { font-size: 4rem; opacity: .15; animation: float 4s ease-in-out infinite; }
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+.empty-state p { font-family: var(--mono); font-size: .75rem; line-height: 1.7; }
+
+/* ── Results header ── */
+.results-header {
+  display: flex; align-items: baseline; gap: .8rem;
+  margin-bottom: 1.4rem; flex-wrap: wrap;
+}
+.mutation-title {
+  font-family: var(--mono); font-size: 1.05rem; font-weight: 500;
+  color: var(--accent); letter-spacing: -.01em;
+}
+.mutation-pill {
+  font-family: var(--mono); font-size: .62rem;
+  padding: .2rem .6rem; border-radius: 20px;
+  background: rgba(79,158,255,.1); border: 1px solid rgba(79,158,255,.25);
+  color: var(--accent);
+}
+.struct-count { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+.view-toggle { display: flex; gap: .3rem; }
+.vtbtn {
+  background: var(--surf2); border: 1px solid var(--border);
+  border-radius: 5px; color: var(--muted); cursor: pointer;
+  font-size: .75rem; padding: .3rem .6rem; transition: all .15s;
+}
+.vtbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ── Side-by-side compare layout ── */
+.compare-layout {
+  display: grid;
+  grid-template-columns: 370px 1fr;
+  gap: 1.4rem;
+  align-items: start;
+}
+
+/* ── Reference panel (left, sticky) ── */
+.ref-panel {
+  background: var(--surf);
+  border: 1px solid rgba(79,158,255,.35);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  position: sticky; top: 0;
+  box-shadow: 0 0 30px rgba(79,158,255,.06);
+}
+.ref-header {
+  padding: .65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: .6rem;
+  background: rgba(79,158,255,.06);
+}
+.ref-badge {
+  font-family: var(--mono); font-size: .55rem; letter-spacing: .1em;
+  padding: .15rem .5rem; border-radius: 4px;
+  background: rgba(79,158,255,.15); border: 1px solid rgba(79,158,255,.3);
+  color: var(--accent); text-transform: uppercase;
+}
+.ref-title { font-family: var(--mono); font-size: .72rem; color: var(--text); }
+.ref-subtitle { font-family: var(--mono); font-size: .58rem; color: var(--muted); margin-left: auto; }
+
+/* 3Dmol live viewer area */
+.ref-viewer-3d {
+  height: 300px;
+  background: #04060f;
+  position: relative;
+  overflow: hidden;
+}
+.ref-viewer-loading {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: .6rem; color: var(--muted);
+  font-family: var(--mono); font-size: .65rem;
+}
+.spinner {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Style selector row (ref panel) */
+.ref-styles {
+  padding: .45rem .85rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; gap: .35rem; align-items: center;
+  background: rgba(0,0,0,.2);
+}
+.ref-style-label {
+  font-family: var(--mono); font-size: .58rem; color: var(--muted);
+  margin-right: .2rem;
+}
+
+/* Action row (ref panel) */
+.ref-actions {
+  padding: .6rem .85rem;
+  display: flex; gap: .4rem; flex-wrap: wrap;
+}
+
+/* ChimeraX thumbnail strip below the 3D viewer */
+.ref-cx-thumb {
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: .7rem;
+  padding: .5rem .85rem;
+  background: rgba(0,0,0,.15);
+}
+.cx-thumb-label {
+  font-family: var(--mono); font-size: .58rem; color: var(--muted);
+  flex-shrink: 0;
+}
+.cx-thumb-img {
+  height: 52px; border-radius: 5px; border: 1px solid var(--border2);
+  cursor: pointer; transition: border-color .15s;
+  object-fit: cover;
+}
+.cx-thumb-img:hover { border-color: var(--accent); }
+
+/* ── Cell-types panel (right) ── */
+.ct-panel { min-width: 0; }
+.ct-panel-header { display: flex; align-items: center; gap: .8rem; margin-bottom: .9rem; flex-wrap: wrap; }
+.ct-panel-title { font-family: var(--mono); font-size: .62rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+
+/* ── Structure grid ── */
+.structs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 1rem;
+}
+.structs-grid.list-view { grid-template-columns: 1fr; }
+
+/* ── Card ── */
+.struct-card {
+  background: var(--surf); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+  animation: fadeUp .35s ease both; cursor: pointer;
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+.struct-card:hover {
+  border-color: rgba(79,158,255,.45);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,.4);
+}
+.struct-card.list-view { display: grid; grid-template-columns: 180px 1fr; }
+
+/* ChimeraX PNG thumbnail */
+.card-vis {
+  position: relative; aspect-ratio: 4/3;
+  background: #080b14; overflow: hidden;
+}
+.struct-card.list-view .card-vis { aspect-ratio: unset; height: 100%; }
+.card-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
+.struct-card:hover .card-img { transform: scale(1.03); }
+.no-img { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--border2); }
+.view-mode-badge {
+  position: absolute; top: .5rem; right: .5rem;
+  background: rgba(16,185,129,.25); backdrop-filter: blur(6px);
+  border: 1px solid rgba(16,185,129,.7); border-radius: 5px;
+  padding: .15rem .45rem; font-family: var(--mono); font-size: .55rem;
+  color: #34d399; font-weight: 600; letter-spacing: .03em;
+}
+
+/* Card body */
+.card-body { padding: .75rem .9rem; }
+.card-ct {
+  font-family: var(--mono); font-size: .7rem;
+  color: var(--accent); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center;
+}
+.card-ct-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0; margin-right: .45rem;
+}
+/* ── Metrics pills ── */
+.metrics-row {
+  display: flex; gap: .3rem; margin-top: .42rem; flex-wrap: wrap; align-items: center;
+}
+.metric-pill {
+  font-family: var(--mono); font-size: .58rem;
+  padding: .17rem .5rem; border-radius: 20px;
+  border: 1px solid var(--border2); color: var(--muted);
+  white-space: nowrap;
+}
+.metric-pill.good { border-color: rgba(16,185,129,.5);  color: #10b981; background: rgba(16,185,129,.08); }
+.metric-pill.warn { border-color: rgba(245,158,11,.5);  color: #f59e0b; background: rgba(245,158,11,.07); }
+.metric-pill.bad  { border-color: rgba(239,68,68,.5);   color: #ef4444; background: rgba(239,68,68,.08); }
+.card-actions { display: flex; gap: .35rem; margin-top: .55rem; flex-wrap: wrap; }
+
+/* Shared button styles */
+.btn-card {
+  flex: 1; text-align: center; text-decoration: none;
+  background: var(--surf2); border: 1px solid var(--border2);
+  border-radius: 6px; color: var(--muted);
+  font-family: var(--mono); font-size: .62rem;
+  padding: .28rem .45rem; cursor: pointer;
+  transition: all .15s; white-space: nowrap;
+}
+.btn-card:hover { border-color: var(--accent); color: var(--accent); }
+.btn-card.viewer-btn { color: var(--accent2); border-color: rgba(124,58,237,.3); }
+.btn-card.viewer-btn:hover { background: rgba(124,58,237,.12); }
+.btn-card.cx-btn { color: #10b981; border-color: rgba(16,185,129,.3); }
+.btn-card.cx-btn:hover { background: rgba(16,185,129,.1); }
+.btn-card.cx-btn.launched { color: var(--green); border-color: var(--green); }
+
+.ctrl-btn {
+  background: var(--surf2); border: 1px solid var(--border2);
+  border-radius: 6px; color: var(--muted);
+  font-family: var(--mono); font-size: .62rem;
+  padding: .28rem .6rem; cursor: pointer;
+  transition: all .15s; text-decoration: none; display: inline-block; white-space: nowrap;
+}
+.ctrl-btn:hover { background: rgba(79,158,255,.1); border-color: var(--accent); color: var(--accent); }
+.ctrl-btn.active { background: rgba(79,158,255,.15); border-color: var(--accent); color: var(--accent); }
+.ctrl-btn.cx-btn { color: #10b981; border-color: rgba(16,185,129,.3); }
+.ctrl-btn.cx-btn:hover { background: rgba(16,185,129,.1); }
+.ctrl-btn.cx-btn.launched { color: var(--green); border-color: var(--green); }
+
+/* ── Modal 3D viewer ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 100;
+  background: rgba(2,3,10,.85); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surf); border: 1px solid var(--border2); border-radius: 16px; overflow: hidden;
+  width: min(900px, 95vw); max-height: 90vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 30px 80px rgba(0,0,0,.7);
+  animation: modalIn .25s ease;
+}
+@keyframes modalIn { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+.modal-header {
+  padding: 1rem 1.3rem; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: .8rem;
+}
+.modal-ct { font-family: var(--mono); font-size: .8rem; color: var(--accent); font-weight: 500; }
+.modal-protein { font-family: var(--mono); font-size: .65rem; color: var(--muted); }
+.modal-close {
+  margin-left: auto; background: none; border: none;
+  color: var(--muted); cursor: pointer; font-size: 1.1rem; transition: color .15s;
+}
+.modal-close:hover { color: var(--text); }
+.modal-viewer { width: 100%; height: 520px; background: #04060f; position: relative; }
+.modal-controls {
+  padding: .8rem 1.3rem; border-top: 1px solid var(--border);
+  display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🧬</div>
+  <div class="brand">
+    <div class="brand-name">Struct<span>Cell</span></div>
+    <div class="brand-sub">context-aware protein folding</div>
+  </div>
+  <div class="pipeline-tags">
+    <span class="tag active">ESM-2</span>
+    <span class="tag active">PINNACLE</span>
+    <span class="tag active">ESMfold</span>
+    <span class="tag active">ChimeraX</span>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <div>
+      <div class="section-head">01 · Variant</div>
+      <div class="field">
+        <label>Mutation / Variant Name</label>
+        <input id="mutation_name" type="text" placeholder="e.g. rs776817009, p.Arg533Trp"/>
+        <span class="hint">Display label — shown in results header</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-head">02 · Protein</div>
+      <div class="field">
+        <label>UniProt ID</label>
+        <input id="protein_id" type="text" placeholder="e.g. P0DMM9_rs776817009"/>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Amino-acid sequence</label>
+      <textarea id="sequence" placeholder="MELIQDPSRPPLEYVKG…"></textarea>
+      <span class="hint" id="seq_len"></span>
+    </div>
+
+    <div class="field">
+      <div class="section-head">03 · Gene</div>
+      <label>Gene name (PINNACLE)</label>
+      <input id="gene" type="text" placeholder="e.g. KCNQ2"/>
+      <span class="hint">Used to extract cell-type-specific PINNACLE embeddings</span>
+    </div>
+
+    <div style="margin-top:.5rem">
+      <div class="section-head">04 · Quick-fill</div>
+      <button class="btn-card" style="width:100%;padding:.5rem"
+        onclick="quickFill()">Load example (KCNQ2 / P0DMM9 / rs776817009)</button>
+    </div>
+
+    <button class="btn-run" id="btn_run" onclick="runFold()">
+      <span>▶</span> Run Folding Pipeline
+    </button>
+
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <div class="status-strip" id="status_strip">
+      <div class="dot" id="status_dot"></div>
+      <span class="status-msg" id="status_msg">Running…</span>
+      <span class="job-badge" id="job_badge"></span>
+    </div>
+
+    <div class="log-wrap" id="log_wrap">
+      <button class="log-toggle" onclick="toggleLog()">
+        <span id="log_arrow">▶</span> pipeline logs
+      </button>
+      <div class="log-box" id="log_box"></div>
+    </div>
+
+    <div class="content" id="content">
+      <div class="empty-state">
+        <div class="empty-glyph">⬡</div>
+        <p>Enter a variant name, protein sequence, and gene name.<br/>
+        The pipeline will generate the original ESMfold structure<br/>
+        plus one structure per expressing cell type.</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── 3D Modal (cell-type structures) ── -->
+<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-ct" id="modal_ct">—</span>
+      <div style="display:flex;flex-direction:column;gap:.25rem;margin-left:.1rem">
+        <span class="modal-protein" id="modal_protein"></span>
+        <span id="modal_metrics" style="font-family:var(--mono);font-size:.6rem;display:flex;gap:.3rem;flex-wrap:wrap"></span>
+      </div>
+      <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    </div>
+    <div class="modal-viewer" id="modal_viewer"></div>
+    <div class="modal-controls">
+      <span style="font-family:var(--mono);font-size:.62rem;color:var(--muted);margin-right:.3rem">Style:</span>
+      <button class="ctrl-btn active" onclick="setModalStyle('cartoon')">Cartoon</button>
+      <button class="ctrl-btn" onclick="setModalStyle('stick')">Stick</button>
+      <button class="ctrl-btn" onclick="setModalStyle('sphere')">Sphere</button>
+      <button class="ctrl-btn" onclick="setModalStyle('surface')">Surface</button>
+      <span style="flex:1"></span>
+      <button class="ctrl-btn" onclick="resetModalView()">Reset view</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let pollTimer         = null;
+let modalViewer       = null;
+let modalStyle        = 'cartoon';
+let modalColor        = null;        // hex color for the currently-open cell-type modal
+let refViewer         = null;        // 3Dmol viewer in the ref panel
+let refStyle          = 'cartoon';
+let structures        = [];
+let originalStructure = null;
+let currentJob        = null;
+let layoutRendered    = false;       // true once the two-panel layout is in the DOM
+let listMode          = false;
+let metricsReceived   = false;       // true once US-align metrics have been fetched
+let doneTimestamp     = null;        // when 'done' was first seen — keep polling for metrics after this
+
+// ── Quick fill ────────────────────────────────────────────────────────────────
+function quickFill() {
+  document.getElementById('mutation_name').value = 'rs776817009 (KCNQ2)';
+  document.getElementById('protein_id').value    = 'P0DMM9_rs776817009';
+  document.getElementById('gene').value          = 'KCNQ2';
+  document.getElementById('sequence').value      =
+    'MELIQDPSRPPLEYVKGVPLIKYFAEALGPLQSFQARPDDLLINTYPKSGTTWVSQILDMIYQGGDLEKCNRAPIYVRVPFLEVNDPGEPSGLETLKDTPPPRLIKSHLPLALLPQTLLDQKVKVVYVARNPKDVAVSYYHFHRMEKAHPEPGTWDSFLEKFMAGEVSYGSWYQHVQEWWELSRTHPVLYLFYEDMKENPKREIQKILEFVGRSLPEETMDFMVQHTSFKEMKKNPMTNYTTVPQELMDHSISPFMRKGMAGDWKTTFTVAQNERFDADYAEKMAGCSLSFRSEL';
+  updateSeqLen();
+}
+
+document.getElementById('sequence').addEventListener('input', updateSeqLen);
+function updateSeqLen() {
+  const s = document.getElementById('sequence').value.trim();
+  document.getElementById('seq_len').textContent = s.length ? `${s.length} residues` : '';
+}
+
+// ── Run ───────────────────────────────────────────────────────────────────────
+async function runFold() {
+  const mutation_name = document.getElementById('mutation_name').value.trim();
+  const protein_id    = document.getElementById('protein_id').value.trim();
+  const sequence      = document.getElementById('sequence').value.trim();
+  const gene          = document.getElementById('gene').value.trim();
+
+  if (!protein_id || !sequence || !gene) {
+    alert('Please fill in Protein ID, sequence, and gene name.');
+    return;
+  }
+
+  document.getElementById('btn_run').disabled = true;
+
+  // Reset all state
+  structures        = [];
+  originalStructure = null;
+  currentJob        = null;
+  layoutRendered    = false;
+  metricsReceived   = false;
+  doneTimestamp     = null;
+  modalColor        = null;
+  if (refViewer) { try { refViewer.clear(); } catch(e){} refViewer = null; }
+  if (modalViewer) { try { modalViewer.clear(); } catch(e){} modalViewer = null; }
+
+  document.getElementById('status_strip').classList.add('visible');
+  document.getElementById('log_wrap').classList.add('visible');
+  setStatus('running', 'Submitting job…');
+  document.getElementById('log_box').innerHTML = '';
+  document.getElementById('content').innerHTML = '';
+
+  const resp = await fetch('/api/fold', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ protein_id, sequence, gene, mutation_name })
+  });
+  const { job_id, error } = await resp.json();
+
+  if (error) {
+    setStatus('error', error);
+    document.getElementById('btn_run').disabled = false;
+    return;
+  }
+  document.getElementById('job_badge').textContent = `job:${job_id}`;
+  setStatus('running', 'Pipeline running…');
+  pollTimer = setInterval(() => poll(job_id), 2500);
+}
+
+// ── Poll ──────────────────────────────────────────────────────────────────────
+async function poll(job_id) {
+  const resp = await fetch(`/api/status/${job_id}`);
+  const job  = await resp.json();
+  currentJob = job;
+
+  // Logs
+  const lb = document.getElementById('log_box');
+  lb.innerHTML = job.logs.map(l =>
+    `<div class="${l.startsWith('ERROR') ? 'log-err' : ''}">${esc(l)}</div>`
+  ).join('');
+  lb.scrollTop = lb.scrollHeight;
+
+  // Original structure ready for the first time → build the full layout
+  if (job.original_structure && !originalStructure) {
+    originalStructure = job.original_structure;
+    renderLayout();       // builds the two-panel HTML and loads the 3Dmol ref viewer
+  }
+
+  // New cell-type structures arrived → update only the grid (don't touch ref panel)
+  if (job.structures && job.structures.length > structures.length) {
+    structures = job.structures;
+    if (layoutRendered) {
+      updateGrid();         // surgical update — keeps ref viewer alive
+    }
+  }
+
+  // Metrics just arrived from US-align → embed into structures and refresh grid
+  if (job.metrics && !metricsReceived && Object.keys(job.metrics).length > 0) {
+    metricsReceived = true;
+    structures = structures.map(s => {
+      const m = job.metrics[s.cell_type] || {};
+      return { ...s, tm_score: m.tm_score ?? null, rmsd_angstrom: m.rmsd_angstrom ?? null };
+    });
+    if (layoutRendered) updateGrid();
+  }
+
+  if (job.status === 'done') {
+    // First time we see 'done': update UI but keep polling for metrics
+    if (!doneTimestamp) {
+      doneTimestamp = Date.now();
+      setStatus('done', `Done — ${job.structures.length} structure(s) generated`);
+      document.getElementById('btn_run').disabled = false;
+    }
+    // Stop only once metrics have arrived OR after 90 s (US-align can be slow on many structures)
+    if (metricsReceived || (Date.now() - doneTimestamp) > 90000) {
+      clearInterval(pollTimer);
+    }
+  } else if (job.status === 'error') {
+    clearInterval(pollTimer);
+    setStatus('error', job.error || 'Unknown error');
+    document.getElementById('btn_run').disabled = false;
+  }
+}
+
+// ── Render full two-panel layout (called ONCE when originalStructure appears) ─
+function renderLayout() {
+  const mutName = currentJob?.mutation_name || '';
+  const imgUrl  = originalStructure.image ? `/api/image/${encodeURI(originalStructure.image)}` : null;
+  const pdbUrl  = originalStructure.pdb   ? `/api/pdb/${encodeURI(originalStructure.pdb)}`     : null;
+  const pdbRel  = originalStructure.pdb   || '';
+
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <!-- Results header -->
+    <div class="results-header">
+      ${mutName ? `<span class="mutation-title">${esc(mutName)}</span>
+                   <span class="mutation-pill">variant</span>` : ''}
+      <span style="margin-left:auto"></span>
+      <span class="struct-count" id="struct_count">0 cell type(s)</span>
+      <div class="view-toggle">
+        <button class="vtbtn active" id="vt-grid" onclick="setView(false)">⊞</button>
+        <button class="vtbtn"        id="vt-list" onclick="setView(true)">☰</button>
+      </div>
+    </div>
+
+    <div class="compare-layout">
+
+      <!-- LEFT: Reference panel (sticky) -->
+      <div class="ref-panel">
+        <div class="ref-header">
+          <span class="ref-badge">Reference</span>
+          <span class="ref-title">Original ESMfold</span>
+          <span class="ref-subtitle">no PINNACLE</span>
+        </div>
+
+        <!-- Live 3Dmol viewer -->
+        <div class="ref-viewer-3d" id="ref_viewer_3d">
+          <div class="ref-viewer-loading" id="ref_loading">
+            <div class="spinner"></div>
+            <span>Loading 3D structure…</span>
+          </div>
+        </div>
+
+        <!-- Style selector -->
+        <div class="ref-styles">
+          <span class="ref-style-label">Style</span>
+          <button class="ctrl-btn active" id="rs-cartoon" onclick="setRefStyle('cartoon')">Cartoon</button>
+          <button class="ctrl-btn"        id="rs-stick"   onclick="setRefStyle('stick')">Stick</button>
+          <button class="ctrl-btn"        id="rs-sphere"  onclick="setRefStyle('sphere')">Sphere</button>
+        </div>
+
+        <!-- ChimeraX high-res thumbnail (if available) -->
+        ${imgUrl ? `
+        <div class="ref-cx-thumb">
+          <span class="cx-thumb-label">ChimeraX render</span>
+          <img class="cx-thumb-img" src="${imgUrl}"
+               alt="ChimeraX render"
+               onclick="openModalFromUrl('Original ESMfold · ${esc(mutName)}', '${pdbUrl||''}')"
+               onerror="this.parentElement.style.display='none'">
+          <a class="ctrl-btn" href="${imgUrl}" download style="margin-left:auto">↓ PNG</a>
+        </div>` : ''}
+
+        <!-- Action buttons -->
+        <div class="ref-actions">
+          ${pdbUrl  ? `<button class="ctrl-btn viewer-btn"
+                               onclick="openModalFromUrl('Original ESMfold · ${esc(mutName)}', '${pdbUrl}')">
+                         ⬡ Expand 3D
+                       </button>` : ''}
+          ${pdbRel  ? `<button class="ctrl-btn cx-btn" id="cx-ref"
+                               onclick="openInChimeraX('${encodeURI(pdbRel)}', 'cx-ref')">
+                         🔬 Open in ChimeraX
+                       </button>` : ''}
+          ${pdbUrl  ? `<a class="ctrl-btn" href="${pdbUrl}" download>↓ PDB</a>` : ''}
+        </div>
+      </div>
+
+      <!-- RIGHT: Cell-type panel -->
+      <div class="ct-panel">
+        <div class="ct-panel-header">
+          <span class="ct-panel-title">Cell-Type–Specific Structures (ESM-2 + PINNACLE)</span>
+        </div>
+        <div class="structs-grid" id="grid">
+          <div style="color:var(--muted);font-family:var(--mono);font-size:.72rem;
+                      padding:.5rem 0;line-height:2;grid-column:1/-1">
+            Waiting for cell-type structures…
+          </div>
+        </div>
+      </div>
+
+    </div>`;
+
+  layoutRendered = true;
+
+  // Load 3Dmol viewer (async — fires in background)
+  if (pdbUrl) loadRefViewer(pdbUrl);
+
+  // Populate grid if structures already exist
+  if (structures.length) updateGrid();
+}
+
+// ── Update only the cell-type grid (preserves the ref panel & 3Dmol viewer) ─
+function updateGrid() {
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+
+  // Update struct count badge
+  const countEl = document.getElementById('struct_count');
+  if (countEl) countEl.textContent = `${structures.length} cell type(s)`;
+
+  // Update view-toggle active state
+  document.getElementById('vt-grid')?.classList.toggle('active', !listMode);
+  document.getElementById('vt-list')?.classList.toggle('active',  listMode);
+
+  if (!structures.length) {
+    grid.innerHTML = `<div style="color:var(--muted);font-family:var(--mono);font-size:.72rem;
+        padding:.5rem 0;line-height:2;grid-column:1/-1">Waiting for cell-type structures…</div>`;
+    return;
+  }
+
+  grid.className = `structs-grid${listMode ? ' list-view' : ''}`;
+  grid.innerHTML = structures.map((s, i) => {
+    const imgUrl   = s.image ? `/api/image/${encodeURI(s.image)}` : null;
+    const pdbUrl   = s.pdb   ? `/api/pdb/${encodeURI(s.pdb)}`     : null;
+    const pdbRel   = s.pdb   || '';
+    const cxId     = `cx-ct-${i}`;
+    const dotColor = s.color || 'var(--accent)';
+    return `
+      <div class="struct-card${listMode ? ' list-view' : ''}"
+           style="animation-delay:${i * .06}s"
+           onclick="openCellTypeModal(${i})">
+        <div class="card-vis">
+          ${imgUrl
+            ? `<img class="card-img" src="${imgUrl}" alt="${esc(s.cell_type)}"
+                    onerror="this.parentElement.innerHTML='<div class=no-img>🧬</div>'">`
+            : `<div class="no-img">🧬</div>`}
+          <div class="view-mode-badge">ChimeraX</div>
+        </div>
+        <div class="card-body">
+          <div class="card-ct">
+            <span class="card-ct-dot" style="background:${dotColor}"></span>
+            ${esc(s.cell_type)}
+          </div>
+          <div class="metrics-row">${metricsHTML(s)}</div>
+          <div class="card-actions">
+            ${pdbUrl
+              ? `<button class="btn-card viewer-btn"
+                         onclick="event.stopPropagation(); openCellTypeModal(${i})">
+                   ⬡ 3D View
+                 </button>` : ''}
+            ${pdbRel
+              ? `<button class="btn-card cx-btn" id="${cxId}"
+                         onclick="event.stopPropagation();
+                                  openInChimeraX('${encodeURI(pdbRel)}','${cxId}')">
+                   🔬 ChimeraX
+                 </button>` : ''}
+            ${pdbUrl ? `<a class="btn-card" href="${pdbUrl}" download
+                           onclick="event.stopPropagation()">↓ PDB</a>` : ''}
+            ${imgUrl ? `<a class="btn-card" href="${imgUrl}" download
+                           onclick="event.stopPropagation()">↓ PNG</a>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function setView(isList) {
+  listMode = isList;
+  updateGrid();
+}
+
+// ── Load 3Dmol viewer in the reference panel ──────────────────────────────────
+async function loadRefViewer(pdbUrl) {
+  const container = document.getElementById('ref_viewer_3d');
+  if (!container) return;
+
+  try {
+    const resp    = await fetch(pdbUrl);
+    const pdbText = await resp.text();
+
+    // Remove loading overlay
+    const loading = document.getElementById('ref_loading');
+    if (loading) loading.remove();
+
+    refViewer = $3Dmol.createViewer(container, {
+      backgroundColor: '#04060f',
+      antialias: true,
+    });
+    refViewer.addModel(pdbText, 'pdb');
+    applyRefStyle(refStyle);
+    refViewer.zoomTo();
+    refViewer.render();
+  } catch(e) {
+    const loading = document.getElementById('ref_loading');
+    if (loading) loading.innerHTML =
+      `<span style="color:var(--red);font-family:var(--mono);font-size:.65rem;padding:1rem">
+         Failed to load PDB: ${esc(String(e))}
+       </span>`;
+  }
+}
+
+// ── Ref viewer style ───────────────────────────────────────────────────────────
+function setRefStyle(style) {
+  refStyle = style;
+  ['cartoon','stick','sphere'].forEach(s => {
+    document.getElementById(`rs-${s}`)?.classList.toggle('active', s === style);
+  });
+  if (!refViewer) return;
+  applyRefStyle(style);
+}
+
+function applyRefStyle(style) {
+  refViewer.setStyle({}, {});
+  if (style === 'cartoon')
+    refViewer.setStyle({}, { cartoon: { colorscheme: 'ssJmol' } });
+  else if (style === 'stick')
+    refViewer.setStyle({}, { stick: { colorscheme: 'RasmolAmino' } });
+  else if (style === 'sphere')
+    refViewer.setStyle({}, { sphere: { colorscheme: 'RasmolAmino', scale: .5 } });
+  refViewer.render();
+}
+
+// ── Open in ChimeraX ──────────────────────────────────────────────────────────
+async function openInChimeraX(encodedRelPath, btnId) {
+  const relPath = decodeURIComponent(encodedRelPath);
+  const btn = btnId ? document.getElementById(btnId) : null;
+  try {
+    const resp   = await fetch('/api/open_chimerax', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ pdb: relPath })
+    });
+    const result = await resp.json();
+    if (result.error) {
+      alert('ChimeraX error: ' + result.error);
+    } else if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Launched';
+      btn.classList.add('launched');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('launched'); }, 3000);
+    }
+  } catch(e) {
+    alert('Failed to launch ChimeraX: ' + e);
+  }
+}
+
+// ── Metrics pill HTML helper ──────────────────────────────────────────────────
+function metricsHTML(s) {
+  if (s.tm_score == null && s.rmsd_angstrom == null) {
+    // Structures loaded but metrics not yet computed
+    return `<span class="metric-pill">metrics pending…</span>`;
+  }
+  // TM-score: closer to 1 = identical (green/neutral), diverging = more interesting (amber → red)
+  const tmClass   = s.tm_score >= 0.99 ? 'good'   // nearly identical — expected baseline
+                  : s.tm_score >= 0.95 ? 'warn'   // moderate divergence — noteworthy
+                  : 'bad';                          // large divergence — very significant
+  // RMSD: small = green (baseline), growing = amber → red (more interesting)
+  const rmsdClass = s.rmsd_angstrom <= 0.15 ? 'good'   // small — baseline noise
+                  : s.rmsd_angstrom <= 0.5  ? 'warn'   // moderate — noteworthy
+                  : 'bad';                               // large — very significant
+  const tmPill   = s.tm_score      != null
+    ? `<span class="metric-pill ${tmClass}">TM ${s.tm_score.toFixed(3)}</span>` : '';
+  const rmsdPill = s.rmsd_angstrom != null
+    ? `<span class="metric-pill ${rmsdClass}">RMSD ${s.rmsd_angstrom.toFixed(2)}\u00c5</span>` : '';
+  return tmPill + rmsdPill;
+}
+
+// ── Open cell-type modal with colour + metrics ────────────────────────────────
+async function openCellTypeModal(idx) {
+  const s = structures[idx];
+  if (!s) return;
+  const pdbUrl = s.pdb ? `/api/pdb/${encodeURI(s.pdb)}` : null;
+  if (!pdbUrl) return;
+
+  modalColor = s.color || null;
+
+  // Label with coloured dot
+  document.getElementById('modal_ct').innerHTML =
+    `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;` +
+    `background:${modalColor || 'var(--accent)'};margin-right:.5rem;` +
+    `vertical-align:middle;flex-shrink:0"></span>${esc(s.cell_type)}`;
+
+  // Subtitle: vs. baseline label
+  document.getElementById('modal_protein').textContent = 'vs. baseline ESMfold';
+
+  // Metrics row in header
+  const metricsEl = document.getElementById('modal_metrics');
+  if (metricsEl) metricsEl.innerHTML = metricsHTML(s);
+
+  document.getElementById('modal').classList.add('open');
+
+  const container = document.getElementById('modal_viewer');
+  container.innerHTML = `<div class="ref-viewer-loading">
+    <div class="spinner"></div><span>Loading…</span></div>`;
+  modalViewer = null;
+
+  try {
+    const resp    = await fetch(pdbUrl);
+    const pdbText = await resp.text();
+    container.innerHTML = '';
+    modalViewer = $3Dmol.createViewer(container, { backgroundColor: '#04060f', antialias: true });
+    modalViewer.addModel(pdbText, 'pdb');
+    applyModalStyle(modalStyle);
+    modalViewer.zoomTo();
+    modalViewer.render();
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--red);padding:2rem;font-family:var(--mono);
+        font-size:.75rem">Failed to load PDB: ${esc(String(e))}</div>`;
+  }
+}
+
+// ── Modal 3D viewer (cell-type structures & expanded ref view) ────────────────
+async function openModalFromUrl(label, pdbUrl) {
+  if (!pdbUrl) return;
+  modalColor = null;   // reference panel view — no cell-type colour
+  const parts = label.split(' · ');
+  document.getElementById('modal_ct').textContent      = parts[0];
+  document.getElementById('modal_protein').textContent = parts[1] || '';
+  const metricsEl = document.getElementById('modal_metrics');
+  if (metricsEl) metricsEl.innerHTML = '';   // no metrics for reference view
+  document.getElementById('modal').classList.add('open');
+
+  const container = document.getElementById('modal_viewer');
+  container.innerHTML = `<div class="ref-viewer-loading">
+    <div class="spinner"></div><span>Loading…</span></div>`;
+  modalViewer = null;
+
+  try {
+    const resp    = await fetch(pdbUrl);
+    const pdbText = await resp.text();
+    container.innerHTML = '';
+    modalViewer = $3Dmol.createViewer(container, { backgroundColor: '#04060f', antialias: true });
+    modalViewer.addModel(pdbText, 'pdb');
+    applyModalStyle(modalStyle);
+    modalViewer.zoomTo();
+    modalViewer.render();
+  } catch(e) {
+    container.innerHTML = `<div style="color:var(--red);padding:2rem;font-family:var(--mono);
+        font-size:.75rem">Failed to load PDB: ${esc(String(e))}</div>`;
+  }
+}
+
+function closeModal(e) { if (e.target === document.getElementById('modal')) closeModalDirect(); }
+function closeModalDirect() {
+  document.getElementById('modal').classList.remove('open');
+  if (modalViewer) { modalViewer.clear(); modalViewer = null; }
+  modalColor = null;
+}
+
+function setModalStyle(style) {
+  modalStyle = style;
+  document.querySelectorAll('.modal-controls .ctrl-btn').forEach(b =>
+    b.classList.toggle('active', b.textContent.toLowerCase() === style));
+  if (modalViewer) applyModalStyle(style);
+}
+function applyModalStyle(style) {
+  modalViewer.setStyle({}, {});
+  if (style === 'cartoon') {
+    // Use the cell-type colour if we have one, otherwise fall back to ssJmol
+    if (modalColor)
+      modalViewer.setStyle({}, { cartoon: { color: modalColor } });
+    else
+      modalViewer.setStyle({}, { cartoon: { colorscheme: 'ssJmol' } });
+  } else if (style === 'stick') {
+    modalViewer.setStyle({}, { stick: { colorscheme: 'RasmolAmino' } });
+  } else if (style === 'sphere') {
+    modalViewer.setStyle({}, { sphere: { colorscheme: 'RasmolAmino', scale: .5 } });
+  } else if (style === 'surface') {
+    modalViewer.addSurface($3Dmol.SurfaceType.VDW, { colorscheme: 'whiteCarbon', opacity: .85 });
+  }
+  modalViewer.render();
+}
+function resetModalView() {
+  if (modalViewer) { modalViewer.zoomTo(); modalViewer.render(); }
+}
+
+// ── Log toggle ────────────────────────────────────────────────────────────────
+function toggleLog() {
+  const lb   = document.getElementById('log_box');
+  const open = lb.classList.toggle('open');
+  document.getElementById('log_arrow').textContent = open ? '▼' : '▶';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setStatus(state, msg) {
+  document.getElementById('status_dot').className   = `dot ${state}`;
+  document.getElementById('status_msg').textContent = msg;
+}
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>
