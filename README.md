@@ -2,7 +2,7 @@
 
 This README explains how to build the interactive platform for predicting and visualizing protein structures across multiple cell types.
 
-*By Athena Schumacher, Alma Dubuc*
+*By Athena Schumacher, Alma Dubuc. With the contribution of Dana Dayan*
 
 ![Workflow overview](images/Graphical_Abstract_LLM_Final_Project.png)
 *Picture created with BioRender.*
