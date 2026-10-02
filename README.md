@@ -5,7 +5,12 @@ This README explains how to build the interactive platform for predicting and vi
 *By Athena Schumacher, Alma Dubuc. With the contribution of Dana Dayan.*
 
 ![Workflow overview](images/Graphical_Abstract_LLM_Final_Project.png)
-*Picture created with BioRender.*
+*Graphical abstract created with BioRender.* 
+<br>
+<br>
+
+![Platform example](Platform_simulations_examples/Platform_example.png)
+*Visualization of StructCell Platform for cell-type-specific predictions.*
 
 ## Requirements
 
