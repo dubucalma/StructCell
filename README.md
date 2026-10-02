@@ -1,4 +1,4 @@
-# StructCell: Injection of celltype context into protein structures
+# StructCell: Injection of cell-type context into protein structures
 
 This README explains how to build the interactive platform for predicting and visualizing protein structures across multiple cell types.
 
