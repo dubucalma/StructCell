@@ -6,13 +6,14 @@ This README explains how to build the interactive platform for predicting and vi
 <br>
 *Yale University*
 
-![Workflow overview](images/Graphical_Abstract_LLM_Final_Project.png)
-*Graphical abstract created with BioRender.* 
+![Platform example](simulations_examples/Platform_example.png)
+*Visualization of StructCell Platform for cell-type-specific predictions.*
+
 <br>
 <br>
 
-![Platform example](Platform_simulations_examples/Platform_example.png)
-*Visualization of StructCell Platform for cell-type-specific predictions.*
+![Workflow overview](images/Graphical_Abstract_LLM_Final_Project.png)
+*Graphical abstract created with BioRender.* 
 
 ## Requirements
 
@@ -82,12 +83,14 @@ Then open `http://localhost:5000` in your browser.
 
 `flask_scripts/app.py` extracts ESM2 sequence embeddings, aggregates them with cell type-specific PINNACLE embeddings, and reinjects the combined representation into the ESMFold decoder to generate cell type-aware protein structures. Each prediction is then compared to a baseline structure (ESMFold without PINNACLE context) using US-align, which reports TM-score and RMSD.
 
+It is also possible to test the effects of coding variants by mutating the input sequence. This platform therefore serves two purposes: predicting the structures of wild-type proteins across cell types, and detecting whether some coding variants have stronger structural effects in certain cell types than in others.
+
 ## Examples of cell-type specific predictions
 `simulations_examples/` contains 2 examples of cell-type specific predictions for 2 different proteins, p53 and Calm1.
 
 ## Acknowledgements
 
-StructCell leverages two published models, PINNACLE and ESM2:
+StructCell leverages two published models, PINNACLE and ESM2.
 
 Li, M.M., Huang, Y., Sumathipala, M., Liang, M.Q., Valdeolivas, A., Ananthakrishnan, A.N., Liao, K., Marbach, D., and Zitnik, M. (2024). Contextual AI models for single-cell protein biology. Nat Methods 21, 1546–1557. https://doi.org/10.1038/s41592-024-02341-3. 
 
