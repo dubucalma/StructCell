@@ -82,3 +82,11 @@ Then open `http://localhost:5000` in your browser.
 ## Cell Type Specific Predictions
 
 `flask_scripts/app.py` extracts ESM2 sequence embeddings, aggregates them with cell type-specific PINNACLE embeddings, and reinjects the combined representation into the ESMFold decoder to generate cell type-aware protein structures.
+
+## Acknowledgements
+
+StructCell leverages two published models, PINNACLE and ESM2:
+
+Li, M.M., Huang, Y., Sumathipala, M., Liang, M.Q., Valdeolivas, A., Ananthakrishnan, A.N., Liao, K., Marbach, D., and Zitnik, M. (2024). Contextual AI models for single-cell protein biology. Nat Methods 21, 1546–1557. https://doi.org/10.1038/s41592-024-02341-3. 
+
+Lin, Z., Akin, H., Rao, R., Hie, B., Zhu, Z., Lu, W., Smetanin, N., Verkuil, R., Kabeli, O., Shmueli, Y., et al. Evolutionary-scale prediction of atomic-level protein structure with a language model. 
