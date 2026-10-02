@@ -13,14 +13,6 @@ This README explains how to build the interactive platform for predicting and vi
 - [ChimeraX 1.10](https://www.cgl.ucsf.edu/chimerax/) *(optional — for PNG thumbnails; 3Dmol viewer works without it)*
 - 40GB RAM, 4 CPUs
 
-**For Yale HPC users, here is our configuration**
-
-```bash
-salloc --nodes=1 --ntasks=1 --cpus-per-task=4 --mem=40G --partition=gpu_devel --gpus=1
-```
-
-`gpu_devel` is time-limited. For long jobs, you may need to switch to another GPU partition (for training purposes).
-
 ## Setup
 
 ### 1. Conda environment - ESM2, ESMFolf, Flask
