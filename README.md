@@ -3,6 +3,8 @@
 This README explains how to build the interactive platform for predicting and visualizing protein structures across multiple cell types.
 
 *By Athena Schumacher, Alma Dubuc. With the contribution of Dana Dayan.*
+<br>
+*Yale University*
 
 ![Workflow overview](images/Graphical_Abstract_LLM_Final_Project.png)
 *Graphical abstract created with BioRender.* 
@@ -78,7 +80,7 @@ Then open `http://localhost:5000` in your browser.
 
 ## Cell-Type Specific Predictions
 
-`flask_scripts/app.py` extracts ESM2 sequence embeddings, aggregates them with cell type-specific PINNACLE embeddings, and reinjects the combined representation into the ESMFold decoder to generate cell type-aware protein structures.
+`flask_scripts/app.py` extracts ESM2 sequence embeddings, aggregates them with cell type-specific PINNACLE embeddings, and reinjects the combined representation into the ESMFold decoder to generate cell type-aware protein structures. Each prediction is then compared to a baseline structure (ESMFold without PINNACLE context) using US-align, which reports TM-score and RMSD.
 
 ## Examples of cell-type specific predictions
 `Platform_simulations_examples/` contains 2 examples of cell-type specific predictions for 2 different proteins, p53 and CALM1.

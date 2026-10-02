@@ -1,13 +1,31 @@
+"""
+Cell-type-aware protein structure prediction web app.
+
+A Flask server that predicts how a protein's 3D structure may differ across
+human cell types. Per-residue ESM-2 embeddings of the input sequence are
+combined with cell-type-specific PINNACLE embeddings for the given gene, and
+ESMFold folds one structure per cell type alongside a context-free baseline.
+
+Pipeline:
+    1. Embed the sequence with ESM-2 (esm2_t36_3B_UR50D, layer 36).
+    2. Look up PINNACLE embeddings for the gene in every cell type it appears in.
+    3. Project each PINNACLE vector (128 -> 2560) and add it to the ESM-2
+       embeddings (scaled by 0.1) to get cell-type-conditioned embeddings.
+    4. Fold a baseline structure (ESM-2 only) and one structure per cell type
+       with ESMFold.
+    5. Render PNG thumbnails with headless ChimeraX (optional).
+    6. Compare each cell-type structure to the baseline with US-align
+       (TM-score, RMSD) (optional).
+"""
+
 from flask import Flask, render_template, request, jsonify, send_from_directory
 import os, threading, uuid, json, subprocess, traceback
 from pathlib import Path
 
+# ===================  Configuration & ChimeraX detection =====================
 app = Flask(__name__)
-
-OUTPUT_BASE = "/home/cpsc4770_aks228/project_cpsc4770/cpsc4770_aks228/ESM/output_web"
-#
+OUTPUT_BASE = "/path/to/output_web"   # TODO: set to your output directory
 CHIMERAX_BIN = "/apps/software/2024a/software/ChimeraX/1.10.1-1-gfbf-2024a-CUDA-12.8.0/usr/bin/chimerax"   
-
 
 import shutil as _shutil
 if os.path.isabs(CHIMERAX_BIN):
@@ -28,7 +46,7 @@ else:
     print(f"INFO: ChimeraX found at {CHIMERAX_BIN!r}. "
           f"xvfb-run {'available' if XVFB_AVAILABLE else 'not found — using --offscreen only'}.")
 
-# ── US-align detection ────────────────────────────────────────────────────────
+# =================== US-align detection ====================================
 # US-align (Zhang lab, Nature Methods 2022) is the modern successor to TM-align.
 # It outputs TM-score and RMSD in the same format and handles proteins, RNA, DNA.
 USALIGN_BIN       = "USalign"         
@@ -39,12 +57,12 @@ else:
     print(f"INFO: US-align not found — skipping structural metrics. "
           f"Install from https://zhanggroup.org/US-align/ and add to PATH.")
 
-PINNACLE_EMBED_PATH  = "/home/cpsc4770_aks228/PINNACLE/pinnacle_embeds/pinnacle_embeds/pinnacle_protein_embed.pth"
-PINNACLE_LABELS_PATH = "/home/cpsc4770_aks228/PINNACLE/pinnacle_embeds/pinnacle_embeds/pinnacle_protein_labels_dict.txt"
+PINNACLE_EMBED_PATH  = "/path/to/pinnacle_protein_embed.pth"   # TODO: set to PINNACLE_EMBED_PATH
+PINNACLE_LABELS_PATH = "/path/to/pinnacle_protein_labels_dict.txt" # TODO: set to PINNACLE_LABELS_PATH
 
 jobs = {}   # in-memory job store
 
-# ── Cell-type colour palette ──────────────────────────────────────────────────
+# =================== Cell-type colour palette ===================================
 # Each cell type gets a stable colour used in both 3Dmol.js and ChimeraX renders.
 CELL_TYPE_COLORS = [
     "#ef4444",   # red
@@ -67,7 +85,7 @@ def _hex_to_cx(hex_color: str) -> str:
     return hex_color.lstrip("#")
 
 
-# ─── Routes ──────────────────────────────────────────────────────────────────
+# ===================  Routes ========================================================
 
 @app.route("/")
 def index():
@@ -149,7 +167,7 @@ def open_chimerax():
         return jsonify({"error": str(e)}), 500
 
 
-# ─── Pipeline worker ─────────────────────────────────────────────────────────
+# ===================== Pipeline =========================================
 
 def _log(job_id, msg):
     print(msg)
@@ -292,12 +310,11 @@ def _run_pipeline(job_id, protein_id, sequence, gene):
         _log(job_id, f"ERROR: {traceback.format_exc()}")
 
 
-# ─── ChimeraX rendering ───────────────────────────────────────────────────────
+# ======================= ChimeraX rendering =====================================
 
 def _chimerax_render(job_id, pdb_path, label, color_hex=None):
     """
-    Render a PNG thumbnail via ChimeraX headless.
-    color_hex: hex string like '#ef4444'. None → 'color bychain' (rainbow).
+    Render a PNG thumbnail via ChimeraX
     """
     if not CHIMERAX_AVAILABLE:
         _log(job_id, f"  ⚠ ChimeraX not available — skipping PNG for {label}")
@@ -351,15 +368,13 @@ exit
 """
 
 
-# ─── US-align metrics ─────────────────────────────────────────────────────────
+# ========================= US-align metrics =====================================
 
 def _compute_metrics(job_id, reference_pdb, ct_pdb_paths):
     """
     Run US-align (Nature Methods 2022) between the baseline structure and each
     cell-type structure.  US-align is a drop-in successor to TM-align that
     also handles RNA/DNA/complexes and is more accurate on flexible regions.
-
-    Command:  USalign <mobile> <reference> -mol prot
     Output includes:
       TM-score (normalised to reference length) and RMSD of aligned residues.
 
