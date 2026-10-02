@@ -259,7 +259,6 @@ def _run_pipeline(job_id, protein_id, sequence, gene):
             out_dir = os.path.join(OUTPUT_BASE, protein_id, safe_ct_name)
             os.makedirs(out_dir, exist_ok=True)
 
-            ### CAREFUL HERE WITH THE INJECTION OF THE EMBEDDINGS - WILL NOT PUBLISH THIS FUNCTION
             pdb_path, _ = ## "Use ESMfold to obtain the predictions given input embeddings"
             _log(job_id, f"  ✓ PDB: {pdb_path}")
      
