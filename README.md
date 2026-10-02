@@ -82,4 +82,3 @@ Then open `http://localhost:5000` in your browser.
 ## Cell Type Specific Predictions
 
 `flask_scripts/app.py` extracts ESM2 sequence embeddings, aggregates them with cell type-specific PINNACLE embeddings, and reinjects the combined representation into the ESMFold decoder to generate cell type-aware protein structures.
-Helper functions guiding this reinjection are in `flask_scripts/dt.py`.
